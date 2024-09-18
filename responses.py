@@ -1,5 +1,14 @@
 from random import choice, randint
 
+import discord
+import os 
+import asyncio
+import yt_dlp
+from dotenv import load_dotenv
+
+def run_bot():
+    load_dotenv
+    TOKEN = os.getenv('DISCORD_TOKEN')
 
 def get_response(user_input: str) -> str: 
     lowered: str = user_input.lower()
