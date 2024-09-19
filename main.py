@@ -14,6 +14,12 @@ intents = Intents.default()
 intents.message_content = True #NOQA
 client = Client(intents=intents)
 
+voice_cilents = {}
+yt_dl_options = {"format": "bestaudio/best"}
+ytdl = yt_dlp.YoutubeDL(yt_dl_options)
+
+ffmpeg = {'options': '-vn'}
+
 # step 2: message functionality
 async def send_message(message: Message, user_message: str) -> None:
     if not user_message:
@@ -39,6 +45,27 @@ async def on_ready() -> None:
 async def on_message(message: Message) -> None:
     if message.author == client.user:
         return
+
+    if message.content.startswith("?play"):
+        try:
+            voice_cilent = await message.author.voice.channel.connect()
+            voice_cilents[voice_cilent.guild.id] = voice_cilent
+        except Exception as e:
+            print(e)
+        
+        try:
+            url = message.content.split()[1]
+
+            loop = asyncio.get_event_loop()
+            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
+
+            song = data['url']
+            player = discord.ffmpegPCMAudio(song, **ffmpeg_options)
+
+            voice_cilents[message.guild.id].play(player)
+        except Exception as e:
+            print(e)
+            
 
     username: str = str(message.author)
     user_message: str = message.content
