@@ -2,7 +2,9 @@ import os
 from dotenv import load_dotenv
 from discord import Intents, Client, Message
 from responses import get_response
-
+import asyncio
+import yt_dlp
+import discord
 # step 0: load token from somewhere safe
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -18,7 +20,7 @@ voice_cilents = {}
 yt_dl_options = {"format": "bestaudio/best"}
 ytdl = yt_dlp.YoutubeDL(yt_dl_options)
 
-ffmpeg = {'options': '-vn'}
+ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=3"'}
 
 # step 2: message functionality
 async def send_message(message: Message, user_message: str) -> None:
@@ -46,7 +48,7 @@ async def on_message(message: Message) -> None:
     if message.author == client.user:
         return
 
-    if message.content.startswith("?play"):
+    if message.content.startswith("!play"):
         try:
             voice_cilent = await message.author.voice.channel.connect()
             voice_cilents[voice_cilent.guild.id] = voice_cilent
@@ -60,12 +62,34 @@ async def on_message(message: Message) -> None:
             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
 
             song = data['url']
-            player = discord.ffmpegPCMAudio(song, **ffmpeg_options)
+            player = discord.FFmpegOpusAudio(song, **ffmpeg_options)
 
             voice_cilents[message.guild.id].play(player)
         except Exception as e:
             print(e)
-            
+
+
+
+    if message.content.startswith("!pause"):
+        try:
+            voice_clients[message.guild.id].pause()
+        except Exception as e:
+            print(e)
+
+
+    if message.content.startswith("!stop"):
+        try:
+            voice_clients[message.guild.id].stop()
+            await voice_clients[message.guild.id].disconnect()
+        except Exception as e:
+            print(e)
+
+
+    if message.content.startswith("!resume"):
+        try:
+            voice_clients[message.guild.id].resume()
+        except Exception as e:
+            print(e)
 
     username: str = str(message.author)
     user_message: str = message.content
