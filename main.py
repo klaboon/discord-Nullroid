@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from discord import Intents, Client, Message
+from discord import Intents, Client, Message, app_commands
 from responses import get_response
 import asyncio
 import yt_dlp
@@ -16,7 +16,9 @@ intents = Intents.default()
 intents.message_content = True #NOQA
 client = Client(intents=intents)
 
-voice_cilents = {}
+tree = app_commands.CommandTree(client)
+
+voice_clients = {}
 yt_dl_options = {"format": "bestaudio/best"}
 ytdl = yt_dlp.YoutubeDL(yt_dl_options)
 
@@ -41,6 +43,20 @@ async def send_message(message: Message, user_message: str) -> None:
 @client.event
 async def on_ready() -> None:
     print(f'{client.user} is now running!')
+    try:
+        await tree.sync() # don't sync commands on ready because you can get rate limited
+    except Exception as e:
+        print(e)
+
+    @tree.command(name="hello")
+    async def hello(interaction: discord.Integration):
+        await interaction.response.send_message(f"Hey {interaction.user.mention}! This is a slash command")
+    
+    @tree.command(name="speak")
+    @app_commands.describe(description="What do you want me to say?")
+    async def speak(interaction: discord.Interaction, description: str):
+        await interaction.response.send_message(f"{interaction.user.name} said: {description}")
+
 
 # step 4: handling incoming messages
 @client.event
@@ -50,8 +66,8 @@ async def on_message(message: Message) -> None:
 
     if message.content.startswith("!play"):
         try:
-            voice_cilent = await message.author.voice.channel.connect()
-            voice_cilents[voice_cilent.guild.id] = voice_cilent
+            voice_client = await message.author.voice.channel.connect()
+            voice_clients[voice_client.guild.id] = voice_client
         except Exception as e:
             print(e)
         
@@ -64,7 +80,7 @@ async def on_message(message: Message) -> None:
             song = data['url']
             player = discord.FFmpegOpusAudio(song, **ffmpeg_options)
 
-            voice_cilents[message.guild.id].play(player)
+            voice_clients[message.guild.id].play(player)
         except Exception as e:
             print(e)
 
