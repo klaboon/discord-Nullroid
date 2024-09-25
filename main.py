@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from discord import Intents, Client, Message, app_commands
+from discord import Intents, Message
 from responses import get_response
 import asyncio
 import yt_dlp
@@ -14,9 +14,9 @@ print(TOKEN)
 
 intents = Intents.default()
 intents.message_content = True #NOQA
-client = Client(intents=intents)
+bot = discord.Bot(intents=intents)
 
-tree = app_commands.CommandTree(client)
+
 
 voice_clients = {}
 yt_dl_options = {"format": "bestaudio/best"}
@@ -40,28 +40,15 @@ async def send_message(message: Message, user_message: str) -> None:
         print(e)
 
 # step 3: handling startup for bot
-@client.event
+@bot.event
 async def on_ready() -> None:
-    print(f'{client.user} is now running!')
-    try:
-        await tree.sync() # don't sync commands on ready because you can get rate limited
-    except Exception as e:
-        print(e)
-
-    @tree.command(name="hello")
-    async def hello(interaction: discord.Integration):
-        await interaction.response.send_message(f"Hey {interaction.user.mention}! This is a slash command")
-    
-    @tree.command(name="speak")
-    @app_commands.describe(description="What do you want me to say?")
-    async def speak(interaction: discord.Interaction, description: str):
-        await interaction.response.send_message(f"{interaction.user.name} said: {description}")
+    print(f'{bot.user} is now running!')
 
 
 # step 4: handling incoming messages
-@client.event
+@bot.event
 async def on_message(message: Message) -> None:
-    if message.author == client.user:
+    if message.author == bot.user:
         return
 
     if message.content.startswith("!play"):
@@ -117,7 +104,7 @@ async def on_message(message: Message) -> None:
 
 # setp 5: main entry point
 def main() -> None: 
-    client.run(token=TOKEN)
+    bot.run(token=TOKEN)
 
 
 if __name__ == '__main__':
