@@ -44,6 +44,9 @@ async def send_message(message: Message, user_message: str) -> None:
 async def on_ready() -> None:
     print(f'{bot.user} is now running!')
 
+@bot.command(description="Sends the bot's latency.") # this decorator makes a slash command
+async def ping(ctx): # a slash command will be created with the name "ping"
+    await ctx.respond(f"Pinged for a latency of {bot.latency}")
 
 # step 4: handling incoming messages
 @bot.event
