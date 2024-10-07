@@ -1,24 +1,28 @@
 import os
 from dotenv import load_dotenv
-from discord import Intents, Message
+from discord import Intents, Client, Message
+from discord.ext import commands
 from responses import get_response
 import asyncio
 import yt_dlp
 import discord
+import urllib.parse, urllib.request, re
+
 # step 0: load token from somewhere safe
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
-print(TOKEN)
 
 # step 1: bot setup
 
 intents = Intents.default()
 intents.message_content = True #NOQA
-bot = discord.Bot(intents=intents)
+client = commands.Bot(command_prefix="!", intents=intents)
 
-
-
+queues = {}
 voice_clients = {}
+youtube_base_url = 'https://www.youtube.com/'
+youtube_results_url = youtube_base_url + 'results?'
+youtube_watch_url = youtube_base_url + 'watch?v='
 yt_dl_options = {"format": "bestaudio/best"}
 ytdl = yt_dlp.YoutubeDL(yt_dl_options)
 
@@ -40,74 +44,105 @@ async def send_message(message: Message, user_message: str) -> None:
         print(e)
 
 # step 3: handling startup for bot
-@bot.event
+@client.event
 async def on_ready() -> None:
-    print(f'{bot.user} is now running!')
-
-@bot.command(description="Sends the bot's latency.") # this decorator makes a slash command
-async def ping(ctx): # a slash command will be created with the name "ping"
-    await ctx.respond(f"Pinged for a latency of {bot.latency}")
+    print(f'{client.user} is now running!')
 
 # step 4: handling incoming messages
-@bot.event
-async def on_message(message: Message) -> None:
-    if message.author == bot.user:
-        return
 
-    if message.content.startswith("!play"):
-        try:
-            voice_client = await message.author.voice.channel.connect()
-            voice_clients[voice_client.guild.id] = voice_client
-        except Exception as e:
-            print(e)
+async def play_next(ctx):
+    if queues[ctx.guild.id] != []:
+        link = queues[ctx.guild.id].pop(0)
+        await play(ctx, link=link)
+
+
+@client.command(name="play")
+async def play(ctx, *, link):
+    try:
+        voice_client = await ctx.author.voice.channel.connect()
+        voice_clients[voice_client.guild.id] = voice_client
+    except Exception as e:
+        print(e)
+
+    try:
+
+        if youtube_base_url not in link:
+            query_string = urllib.parse.urlencode({
+                'search_query': link
+            })
+
+            content = urllib.request.urlopen(
+                youtube_results_url + query_string
+            )
+
+            search_results = re.findall(r'/watch\?v=(.{11})', content.read().decode())
+
+            link = youtube_watch_url + search_results[0]
         
+        loop = asyncio.get_event_loop()
+        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
+
+        song = data['url']
+        player = discord.FFmpegOpusAudio(song, **ffmpeg_options)
+
+        voice_clients[ctx.guild.id].play(player, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
+        await ctx.send(f'Now playing {l}.')
+    except Exception as e:
+        print(e)
+
+    @client.command("clear_queue")
+    async def clear_queue(ctx):
+        if ctx.guild.id in queues:
+            queues[ctx.guild.id].clear()
+            await ctx.send("Queue cleared.")
+        else:
+            await ctx.send("There is no queue to clear.")
+
+    @client.command(name="pause")
+    async def pause(ctx):
         try:
-            url = message.content.split()[1]
-
-            loop = asyncio.get_event_loop()
-            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
-
-            song = data['url']
-            player = discord.FFmpegOpusAudio(song, **ffmpeg_options)
-
-            voice_clients[message.guild.id].play(player)
+            voice_clients[ctx.guild.id].pause()
+            await ctx.send("Paused.")
         except Exception as e:
             print(e)
 
-
-
-    if message.content.startswith("!pause"):
+    @client.command(name="stop")
+    async def stop(ctx):
         try:
-            voice_clients[message.guild.id].pause()
+            voice_clients[ctx.guild.id].stop()
+            await voice_clients[ctx.guild.id].disconnect()
+            del voice_clients[ctx.guild.id]
+            await ctx.send("Disconnected.")
         except Exception as e:
             print(e)
 
-
-    if message.content.startswith("!stop"):
+    @client.command(name="resume")
+    async def resume(ctx):
         try:
-            voice_clients[message.guild.id].stop()
-            await voice_clients[message.guild.id].disconnect()
+            voice_clients[ctx.guild.id].resume()
+            await ctx.send("Resumed.")
         except Exception as e:
             print(e)
 
+    @client.command(name="queue")
+    async def queue(ctx, *, url):
+        if ctx.guild.id not in queues:
+            queues[ctx.guild.id] = []
+        queues[ctx.guild.id].append(url)
+        await ctx.send("Added to queue.")
 
-    if message.content.startswith("!resume"):
+    @client.command(name="skip")
+    async def skip(ctx):
         try:
-            voice_clients[message.guild.id].resume()
+            await ctx.send("Skipped currently playing.")
+            voice_clients[ctx.guild.id].stop()
+            await play_next(ctx)
         except Exception as e:
             print(e)
-
-    username: str = str(message.author)
-    user_message: str = message.content
-    channel: str = str(message.channel)
-
-    print(f'[{channel}] {username}: "{user_message}"')
-    await send_message(message, user_message)
-
 
 # setp 5: main entry point
 def main() -> None: 
-    bot.run(token=TOKEN)
+    client.run(token=TOKEN)
 
 
 if __name__ == '__main__':
