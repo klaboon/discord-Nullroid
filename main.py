@@ -26,7 +26,7 @@ youtube_watch_url = youtube_base_url + 'watch?v='
 yt_dl_options = {"format": "bestaudio/best"}
 ytdl = yt_dlp.YoutubeDL(yt_dl_options)
 
-ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=3"'}
+ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=0.7"'}
 
 # step 2: message functionality
 async def send_message(message: Message, user_message: str) -> None:
@@ -86,7 +86,7 @@ async def play(ctx, *, link):
         player = discord.FFmpegOpusAudio(song, **ffmpeg_options)
 
         voice_clients[ctx.guild.id].play(player, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
-        await ctx.send(f'Now playing {l}.')
+        await ctx.send(f'Now playing {link}.')
     except Exception as e:
         print(e)
 
@@ -134,8 +134,8 @@ async def play(ctx, *, link):
     @client.command(name="skip")
     async def skip(ctx):
         try:
-            await ctx.send("Skipped currently playing.")
             voice_clients[ctx.guild.id].stop()
+            await ctx.send("Skipped currently playing.")
             await play_next(ctx)
         except Exception as e:
             print(e)
